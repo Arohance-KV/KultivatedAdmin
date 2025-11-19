@@ -1,8 +1,12 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 export default function ProtectedRoute({ children }) {
-  const admin = localStorage.getItem("adminProfile");
+  const token = useSelector((state) => state.auth.token);
+  const localToken = localStorage.getItem("accessToken");
+  
+  const isAuthenticated = token || localToken;
 
-  return admin ? children : <Navigate to="/" replace />;
+  return isAuthenticated ? children : <Navigate to="/" replace />;
 }

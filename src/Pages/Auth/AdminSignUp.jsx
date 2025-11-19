@@ -1,9 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { signup } from "../../redux/AuthSlice";
 import { UserPlus, Mail, Phone, Lock } from "lucide-react";
 
 export default function AdminSignup() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  
+  const { loading, error, success } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -12,152 +17,164 @@ export default function AdminSignup() {
     phoneNumber: "",
     password: "",
   });
-
-  const [error, setError] = useState("");
+  const [localError, setLocalError] = useState("");
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setLocalError("");
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
 
     if (!formData.firstName || !formData.email || !formData.password) {
-      setError("Please fill all required fields.");
+      setLocalError("Please fill all required fields.");
       return;
     }
 
-    localStorage.setItem("adminProfile", JSON.stringify(formData));
-    navigate("/");
+    try {
+      await dispatch(signup(formData)).unwrap();
+    } catch (err) {
+      setLocalError(err.message || "Signup failed");
+    }
   };
 
+  useEffect(() => {
+    if (success) {
+      navigate("/");
+    }
+  }, [success, navigate]);
+
   return (
-    <div className="min-h-screen flex justify-center items-center bg-linear-to-br from-gray-100 to-gray-200 p-6">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl p-10 border border-gray-100">
-
-        {/* Header */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="bg-[#E1C6B3] p-4 rounded-full shadow-md">
-            <UserPlus size={40} className="text-white" />
-          </div>
-          <h2 className="text-3xl font-bold mt-4 text-gray-800">Create Admin Account</h2>
-          <p className="text-gray-500 text-center mt-1">
-            Join and manage your dashboard smoothly.
-          </p>
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-purple-50 to-pink-100">
+      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl">
+        <div className="flex justify-center mb-6">
+          <UserPlus className="w-16 h-16 text-purple-600" />
         </div>
+        <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">
+          Admin Signup
+        </h2>
+        <p className="text-center text-gray-600 mb-8">
+          Join and manage your dashboard smoothly.
+        </p>
 
-        {error && (
-          <div className="bg-red-100 border border-red-300 text-red-700 p-3 rounded-lg mb-4">
-            {error}
+        {(localError || error) && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            {localError || error?.message || "An error occurred"}
           </div>
         )}
 
-        <form onSubmit={handleSignup} className="space-y-5">
-
-          {/* First Name */}
-          <div className="flex flex-col">
-            <label className="mb-1 text-gray-600">First Name *</label>
-            <div className="flex items-center gap-3 bg-gray-100 p-3 rounded-xl border">
-              <UserPlus className="text-gray-500" size={18} />
+        <form onSubmit={handleSignup} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                First Name *
+              </label>
               <input
                 type="text"
                 name="firstName"
-                placeholder="Enter first name"
-                className="bg-transparent w-full outline-none"
                 value={formData.firstName}
                 onChange={handleChange}
+                placeholder="John"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                disabled={loading}
               />
             </div>
-          </div>
-
-          {/* Last Name */}
-          <div className="flex flex-col">
-            <label className="mb-1 text-gray-600">Last Name</label>
-            <div className="flex items-center gap-3 bg-gray-100 p-3 rounded-xl border">
-              <UserPlus className="text-gray-500" size={18} />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Last Name
+              </label>
               <input
                 type="text"
                 name="lastName"
-                placeholder="Enter last name"
-                className="bg-transparent w-full outline-none"
                 value={formData.lastName}
                 onChange={handleChange}
+                placeholder="Doe"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                disabled={loading}
               />
             </div>
           </div>
 
-          {/* Email */}
-          <div className="flex flex-col">
-            <label className="mb-1 text-gray-600">Email *</label>
-            <div className="flex items-center gap-3 bg-gray-100 p-3 rounded-xl border">
-              <Mail className="text-gray-500" size={18} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address *
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="email"
                 name="email"
-                placeholder="Enter email"
-                className="bg-transparent w-full outline-none"
                 value={formData.email}
                 onChange={handleChange}
+                placeholder="admin@example.com"
+                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                disabled={loading}
               />
             </div>
           </div>
 
-          {/* Phone */}
-          <div className="flex flex-col">
-            <label className="mb-1 text-gray-600">Phone Number</label>
-            <div className="flex items-center gap-3 bg-gray-100 p-3 rounded-xl border">
-              <Phone className="text-gray-500" size={18} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Phone Number
+            </label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
-                type="text"
+                type="tel"
                 name="phoneNumber"
-                placeholder="Enter phone number"
-                className="bg-transparent w-full outline-none"
                 value={formData.phoneNumber}
                 onChange={handleChange}
+                placeholder="+91 98765 43210"
+                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                disabled={loading}
               />
             </div>
           </div>
 
-          {/* Password */}
-          <div className="flex flex-col">
-            <label className="mb-1 text-gray-600">Password *</label>
-            <div className="flex items-center gap-3 bg-gray-100 p-3 rounded-xl border">
-              <Lock className="text-gray-500" size={18} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password *
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="password"
                 name="password"
-                placeholder="Enter password"
-                className="bg-transparent w-full outline-none"
                 value={formData.password}
                 onChange={handleChange}
+                placeholder="••••••••"
+                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                disabled={loading}
               />
             </div>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
-            className="w-full bg-[#E1C6B3] text-white font-semibold py-3 rounded-xl shadow-md hover:bg-[#d9b39f] transition"
+            disabled={loading}
+            className="w-full py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            Create Account
+            {loading ? (
+              <span>Creating Account...</span>
+            ) : (
+              <>
+                <UserPlus className="w-5 h-5 mr-2" />
+                Create Account
+              </>
+            )}
           </button>
-
         </form>
 
-        {/* Login Redirect */}
-        <p className="text-center mt-5 text-gray-600">
+        <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{" "}
           <span
-            className="text-[#E1C6B3] font-semibold cursor-pointer hover:underline"
             onClick={() => navigate("/")}
+            className="text-purple-600 font-semibold cursor-pointer hover:underline"
           >
             Login
           </span>
         </p>
-
       </div>
     </div>
   );
