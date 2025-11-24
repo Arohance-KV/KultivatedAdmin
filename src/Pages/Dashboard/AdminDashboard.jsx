@@ -28,7 +28,7 @@ const DashboardHome = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 m-4 bg-[#cca68c] rounded-2xl">
       <h2 className="text-3xl font-semibold text-gray-800">KK Admin Dashboard</h2>
       
       {/* Stats Cards */}

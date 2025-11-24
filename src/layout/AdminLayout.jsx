@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { logout } from "../redux/AuthSlice";
 import {
@@ -21,7 +21,6 @@ import {
 
 const AdminLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -41,9 +40,6 @@ const AdminLayout = () => {
     { name: "Profile", path: "/admin/profile", icon: User },
   ];
 
-  const isActivePath = (path) =>
-    location.pathname === path || location.pathname.startsWith(path);
-
   const handleLogout = () => {
     dispatch(logout());
     navigate("/");
@@ -54,17 +50,17 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside
         className={`${
-          isCollapsed ? "w-20" : "w-64"
-        } bg-linear-to-b from-indigo-600 to-purple-700 text-white transition-all duration-300 flex flex-col shadow-2xl`}
+          isCollapsed ? "w-20" : "w-70"
+        } bg-[#c16f35] text-white transition-all duration-300 flex flex-col shadow-2xl`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-indigo-500">
+        <div className="flex items-center justify-between p-4 border-b border-[#E1C6B3]">
           {!isCollapsed && (
-            <h1 className="text-2xl font-bold tracking-wide">Admin Panel</h1>
+            <h1 className="text-2xl font-bold tracking-wide">Kaltivated Karats</h1>
           )}
           <button
             onClick={toggleSidebar}
-            className="p-2 rounded-lg hover:bg-indigo-500 transition-colors"
+            className="p-2 rounded-lg hover:bg-[#ce8b5b] transition-colors"
           >
             {isCollapsed ? (
               <ChevronRight className="w-5 h-5" />
@@ -75,20 +71,22 @@ const AdminLayout = () => {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 overflow-y-auto py-4">
+        <nav className="flex-1 overflow-hidden py-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = isActivePath(item.path);
 
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-4 py-3 mx-2 rounded-lg transition-all duration-200 ${
-                  isActive
-                    ? "bg-white text-indigo-600 shadow-lg"
-                    : "hover:bg-indigo-500"
-                }`}
+                className={({ isActive }) =>
+                  `flex items-center px-4 py-3 mx-2 rounded-lg transition-all duration-200 ${
+                    isActive
+                      ? "bg-white text-[#b35512] shadow-lg"
+                      : "hover:bg-[#b35512]"
+                  }`
+                }
+                end={item.path === "/admin"} // important: dashboard active only on exact match
               >
                 <Icon className="w-6 h-6" />
                 {!isCollapsed && (
@@ -100,7 +98,7 @@ const AdminLayout = () => {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-indigo-500">
+        <div className="p-4 border-t border-[#E1C6B3]">
           <button
             onClick={handleLogout}
             className="flex items-center w-full px-4 py-3 rounded-lg hover:bg-red-500 transition-colors"
@@ -117,6 +115,6 @@ const AdminLayout = () => {
       </main>
     </div>
   );
-}
+};
 
 export default AdminLayout;

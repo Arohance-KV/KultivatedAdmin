@@ -49,7 +49,7 @@ export default function AdminSignup() {
     <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-purple-50 to-pink-100">
       <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl">
         <div className="flex justify-center mb-6">
-          <UserPlus className="w-16 h-16 text-purple-600" />
+          <UserPlus className="w-16 h-16 text-[#ce8b5b]" />
         </div>
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">
           Admin Signup
@@ -153,7 +153,7 @@ export default function AdminSignup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            className="w-full py-3 bg-[#ce8b5b] text-white font-semibold rounded-lg hover:bg-purple-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {loading ? (
               <span>Creating Account...</span>
@@ -170,7 +170,7 @@ export default function AdminSignup() {
           Already have an account?{" "}
           <span
             onClick={() => navigate("/")}
-            className="text-purple-600 font-semibold cursor-pointer hover:underline"
+            className="text-[#ce8b5b] font-semibold cursor-pointer hover:underline"
           >
             Login
           </span>

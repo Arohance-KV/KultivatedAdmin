@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { PlusCircle, Pencil, Trash2 } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  createVoucher,
+  updateVoucher,
+  deleteVoucher,
+  getAllVouchers,
+} from "../../redux/VoucherSlice";
 
 export default function Voucher() {
-  const [vouchers, setVouchers] = useState([]);
+  const dispatch = useDispatch();
+
+  const { vouchers, loading } = useSelector((state) => state.voucher);
+
+  // Always ensure vouchers is an array to prevent .map crash
+  const safeVouchers = Array.isArray(vouchers) ? vouchers : [];
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingVoucher, setEditingVoucher] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -15,19 +28,13 @@ export default function Voucher() {
     validUpto: "",
   });
 
-  // Load vouchers from localStorage
+  // Load vouchers from backend
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("vouchers")) || [];
-    setVouchers(saved);
-  }, []);
-
-  // Save vouchers on every update
-  useEffect(() => {
-    localStorage.setItem("vouchers", JSON.stringify(vouchers));
-  }, [vouchers]);
+    dispatch(getAllVouchers());
+  }, [dispatch]);
 
   const openCreateModal = () => {
-    setEditingIndex(null);
+    setEditingVoucher(null);
     setFormData({
       name: "",
       code: "",
@@ -39,9 +46,13 @@ export default function Voucher() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (index) => {
-    setEditingIndex(index);
-    setFormData(vouchers[index]);
+  const openEditModal = (voucher) => {
+    setEditingVoucher(voucher);
+    setFormData({
+      ...voucher,
+      startFrom: voucher.startFrom?.slice(0, 16),
+      validUpto: voucher.validUpto?.slice(0, 16),
+    });
     setIsModalOpen(true);
   };
 
@@ -53,39 +64,35 @@ export default function Voucher() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    let updated = [...vouchers];
-
-    if (editingIndex !== null) {
-      // Update existing voucher
-      updated[editingIndex] = formData;
+    if (editingVoucher) {
+      await dispatch(updateVoucher({ id: editingVoucher._id, data: formData }));
     } else {
-      // Add new voucher
-      updated.push(formData);
+      await dispatch(createVoucher(formData));
     }
 
-    setVouchers(updated);
     setIsModalOpen(false);
+    dispatch(getAllVouchers());
   };
 
-  const handleDelete = (index) => {
+  const handleDeleteVoucher = async (id) => {
     if (confirm("Are you sure want to delete this voucher?")) {
-      setVouchers(vouchers.filter((_, i) => i !== index));
+      await dispatch(deleteVoucher(id));
+      dispatch(getAllVouchers());
     }
   };
 
   return (
     <div className="p-6">
-
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Manage Vouchers</h1>
 
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          className="flex items-center gap-2 bg-[#ce8b5b] text-white px-4 py-2 rounded-lg hover:bg-[#cd712f] shadow-sm transition"
         >
           <PlusCircle size={20} /> Create Voucher
         </button>
@@ -99,7 +106,7 @@ export default function Voucher() {
               <th className="p-3">Name</th>
               <th className="p-3">Code</th>
               <th className="p-3">Amount</th>
-              <th className="p-3">Minimum Value</th>
+              <th className="p-3">Min Value</th>
               <th className="p-3">Start</th>
               <th className="p-3">Valid Upto</th>
               <th className="p-3 text-center">Actions</th>
@@ -107,7 +114,15 @@ export default function Voucher() {
           </thead>
 
           <tbody>
-            {vouchers.length === 0 && (
+            {loading && (
+              <tr>
+                <td colSpan="7" className="p-5 text-center">
+                  Loading...
+                </td>
+              </tr>
+            )}
+
+            {!loading && safeVouchers.length === 0 && (
               <tr>
                 <td colSpan="7" className="p-5 text-center text-gray-500">
                   No vouchers available
@@ -115,52 +130,50 @@ export default function Voucher() {
               </tr>
             )}
 
-            {vouchers.map((v, i) => (
-              <tr key={i} className="border-b">
-                <td className="p-3">{v.name}</td>
-                <td className="p-3">{v.code}</td>
-                <td className="p-3">₹{v.amount}</td>
-                <td className="p-3">₹{v.minimumValue}</td>
-                <td className="p-3">
-                  {new Date(v.startFrom).toLocaleString()}
-                </td>
-                <td className="p-3">
-                  {new Date(v.validUpto).toLocaleString()}
-                </td>
+            {!loading &&
+              safeVouchers.map((v) => (
+                <tr key={v._id} className="border-b">
+                  <td className="p-3">{v.name}</td>
+                  <td className="p-3">{v.code}</td>
+                  <td className="p-3">₹{v.amount}</td>
+                  <td className="p-3">₹{v.minimumValue}</td>
+                  <td className="p-3">
+                    {new Date(v.startFrom).toLocaleString()}
+                  </td>
+                  <td className="p-3">
+                    {new Date(v.validUpto).toLocaleString()}
+                  </td>
 
-                <td className="p-3 flex justify-center gap-4 text-center">
-                  <button
-                    onClick={() => openEditModal(i)}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    <Pencil size={18} />
-                  </button>
+                  <td className="p-3 flex justify-center gap-4 text-center">
+                    <button
+                      onClick={() => openEditModal(v)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <Pencil size={18} />
+                    </button>
 
-                  <button
-                    onClick={() => handleDelete(i)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    <button
+                      onClick={() => handleDeleteVoucher(v._id)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
           </tbody>
-
         </table>
       </div>
 
       {/* MODAL FORM */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
-
             <h2 className="text-xl font-semibold mb-6">
-              {editingIndex !== null ? "Update Voucher" : "Create Voucher"}
+              {editingVoucher ? "Update Voucher" : "Create Voucher"}
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-5">
-
               {/* Name */}
               <div>
                 <label className="block font-medium mb-1">Voucher Name</label>
@@ -187,7 +200,7 @@ export default function Voucher() {
                 />
               </div>
 
-              {/* Amount & Minimum Value */}
+              {/* Amount & Min Value */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block font-medium mb-1">Amount</label>
@@ -202,7 +215,9 @@ export default function Voucher() {
                 </div>
 
                 <div>
-                  <label className="block font-medium mb-1">Minimum Value</label>
+                  <label className="block font-medium mb-1">
+                    Minimum Value
+                  </label>
                   <input
                     type="number"
                     name="minimumValue"
@@ -253,14 +268,12 @@ export default function Voucher() {
 
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  className="px-6 py-2 bg-[#ce8b5b] text-white rounded-lg hover:bg-[#cd712f] transition"
                 >
-                  {editingIndex !== null ? "Update" : "Create"}
+                  {editingVoucher ? "Update" : "Create"}
                 </button>
               </div>
-
             </form>
-
           </div>
         </div>
       )}

@@ -1,269 +1,400 @@
 // src/components/admin/Category.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  createCategory,
+  getCategories,
+  updateCategory,
+  deleteCategory,
+  clearMessages,
+} from '../../redux/CategorySlice';
 
 const Category = () => {
+  const dispatch = useDispatch();
+
+  // ✅ Correct slice key: "category" (matches store.js)
+  const categoryState = useSelector((state) => state.category || {});
+  const {
+    categories = [],
+    loading = false,
+    error = null,
+    successMessage = null,
+  } = categoryState;
+
   const [formData, setFormData] = useState({
     categoryId: '',
     name: '',
-    subCategory: '',
-    images: []
+    subCategoryIds: [],
+    imageFiles: [], // local File objects for new uploads
+    description: '',
+    isActive: true,
   });
-  const [categories, setCategories] = useState([]); // Demo state for existing categories
-  const [editId, setEditId] = useState(null); // For edit mode
-  const [showForm, setShowForm] = useState(false); // To toggle form visibility
 
-  // Placeholder subcategories options
-  const subCategoryOptions = [
-    { value: '', label: 'Select a subcategory' },
-    { value: 'electronics', label: 'Electronics' },
-    { value: 'fashion', label: 'Fashion' },
-    { value: 'home', label: 'Home & Garden' },
-    { value: 'sports', label: 'Sports' },
-    { value: 'books', label: 'Books' }
-  ];
+  const [imagePreview, setImagePreview] = useState([]); // array of URLs (existing or local)
+  const [editId, setEditId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+
+  // Load categories on mount
+  useEffect(() => {
+    dispatch(getCategories());
+  }, [dispatch]);
+
+  // Auto-clear messages after 4s
+  useEffect(() => {
+    if (successMessage || error) {
+      const timer = setTimeout(() => dispatch(clearMessages()), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, error, dispatch]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files);
-    setFormData(prev => ({ ...prev, images: files }));
-  };
+  const handleImageFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-  const removeImage = (index) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      images: prev.images.filter((_, i) => i !== index)
+      imageFiles: files,
+    }));
+
+    // Create preview URLs for the newly selected files
+    const previews = files.map((file) => URL.createObjectURL(file));
+    setImagePreview(previews);
+  };
+
+  const handleSubCategories = (e) => {
+    const selected = Array.from(e.target.selectedOptions, (opt) => opt.value);
+    setFormData((prev) => ({ ...prev, subCategoryIds: selected }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Create FormData to handle file uploads
+    const formDataToSend = new FormData();
+    if (formData.categoryId.trim()) {
+      formDataToSend.append('categoryId', formData.categoryId.trim());
+    }
+    formDataToSend.append('name', formData.name.trim());
+    formDataToSend.append('description', formData.description.trim() || '');
+    formDataToSend.append('isActive', String(formData.isActive)); // ✅ send as string
+
+    // Append image files (only for newly selected files)
+    formData.imageFiles.forEach((file) => {
+      formDataToSend.append('imageFiles', file);
+    });
+
+    // Append subcategory IDs
+    if (formData.subCategoryIds.length > 0) {
+      formData.subCategoryIds.forEach((id) => {
+        formDataToSend.append('subCategoryIds', id);
+      });
+    }
+
+    try {
+      if (editId) {
+        // Update
+        await dispatch(
+          updateCategory({ categoryId: editId, updateData: formDataToSend })
+        ).unwrap();
+      } else {
+        // Create
+        await dispatch(createCategory(formDataToSend)).unwrap();
+      }
+      resetForm();
+    } catch (err) {
+      console.error('Form submission error:', err);
+      // Error is already stored in Redux by rejected case
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      categoryId: '',
+      name: '',
+      subCategoryIds: [],
+      imageFiles: [],
+      description: '',
+      isActive: true,
+    });
+    setImagePreview([]);
+    setEditId(null);
+    setShowForm(false);
+  };
+
+  const startEdit = (cat) => {
+    setFormData({
+      categoryId: cat.categoryId || '',
+      name: cat.name || '',
+      subCategoryIds: cat.subCategoryIds || [],
+      imageFiles: [], // existing images are URLs, not File objects
+      description: cat.description || '',
+      isActive: cat.isActive ?? true,
+    });
+
+    // ✅ Normalize imageUrl to array of URLs for preview
+    let previews = [];
+    if (Array.isArray(cat.imageUrl)) {
+      previews = cat.imageUrl;
+    } else if (typeof cat.imageUrl === 'string' && cat.imageUrl.trim() !== '') {
+      previews = [cat.imageUrl];
+    }
+    setImagePreview(previews);
+
+    setEditId(cat._id);
+    setShowForm(true);
+  };
+
+  const startDelete = (cat) => {
+    if (window.confirm('Delete this category permanently?')) {
+      dispatch(deleteCategory(cat._id));
+    }
+  };
+
+  const removeImagePreview = (index) => {
+    // This only removes from UI & selected files.
+    // Existing images on server are not removed unless your backend supports it.
+    setImagePreview((prev) => prev.filter((_, i) => i !== index));
+    setFormData((prev) => ({
+      ...prev,
+      imageFiles: prev.imageFiles.filter((_, i) => i !== index),
     }));
   };
 
-  const isFormValid = () => {
-    return (
-      formData.categoryId.trim() !== '' &&
-      formData.name.trim() !== '' &&
-      formData.subCategory !== '' &&
-      formData.images.length > 0
-    );
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (editId) {
-      // Update existing
-      setCategories(prev => prev.map(c => 
-        c.id === editId ? { ...formData, id: editId } : c
-      ));
-      setEditId(null);
-    } else {
-      // Add new
-      const newId = Date.now();
-      setCategories(prev => [...prev, { id: newId, ...formData }]);
-    }
-    // Reset form and hide
-    setFormData({ categoryId: '', name: '', subCategory: '', images: [] });
-    setShowForm(false);
-    alert(editId ? 'Category updated successfully!' : 'Category added successfully!');
-  };
-
-  const handleEdit = (category) => {
-    setFormData({
-      categoryId: category.categoryId,
-      name: category.name,
-      subCategory: category.subCategory,
-      images: category.images || []
-    });
-    setEditId(category.id);
-    setShowForm(true);
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      setCategories(prev => prev.filter(c => c.id !== id));
-      if (editId === id) {
-        setEditId(null);
-        setFormData({ categoryId: '', name: '', subCategory: '', images: [] });
-        setShowForm(false);
-      }
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditId(null);
-    setFormData({ categoryId: '', name: '', subCategory: '', images: [] });
-    setShowForm(false);
-  };
-
-  const openAddForm = () => {
-    setEditId(null);
-    setFormData({ categoryId: '', name: '', subCategory: '', images: [] });
-    setShowForm(true);
-  };
-
   return (
-    <div className="p-6 bg-[#FFFFFF]">
-      <h2 className="text-3xl font-semibold text-gray-800 mb-6">Manage Categories</h2>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <h2 className="text-3xl font-bold text-gray-800 mb-6">Manage Categories</h2>
 
-      {/* Add Category Button */}
-      <div className="mb-6">
+        {successMessage && (
+          <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+            {successMessage}
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
+
         <button
-          onClick={openAddForm}
-          className="px-6 py-2 bg-[#E1C6B3] text-white font-medium rounded-md hover:bg-[#E1C6B3]/90 transition-colors"
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
+          className="mb-6 px-6 py-3 bg-[#ce8b5b] text-white font-semibold rounded-lg hover:bg-[#cd712f]"
         >
-          Add Category
+          + Add New Category
         </button>
-      </div>
 
-      {/* Add/Edit Category Form */}
-      {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6 mb-8 border border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category ID</label>
-              <input
-                type="text"
-                name="categoryId"
-                value={formData.categoryId}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E1C6B3] focus:border-transparent"
-                placeholder="Enter Category ID"
-                required
-              />
-            </div>
+        {showForm && (
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-10">
+            <h3 className="text-2xl font-semibold mb-6">
+              {editId ? 'Update' : 'Create'} Category
+            </h3>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E1C6B3] focus:border-transparent"
-                placeholder="Enter Category Name"
-                required
-              />
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block font-medium mb-1">Category ID *</label>
+                  <input
+                    required
+                    name="categoryId"
+                    value={formData.categoryId}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#E1C6B3]"
+                    placeholder="CAT001"
+                  />
+                </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Subcategory</label>
-              <select
-                name="subCategory"
-                value={formData.subCategory}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E1C6B3] focus:border-transparent"
-                required
-              >
-                {subCategoryOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="block font-medium mb-1">Name *</label>
+                  <input
+                    required
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#E1C6B3]"
+                    placeholder="Rings"
+                  />
+                </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Images (Multiple Files)</label>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E1C6B3] focus:border-transparent"
-                required
-              />
-              {formData.images.length > 0 && (
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {formData.images.map((file, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-20 object-cover rounded-md shadow-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                <div className="md:col-span-2">
+                  <label className="block font-medium mb-1">Description (optional)</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium mb-1">
+                    Subcategory IDs (optional – Ctrl/Cmd + click)
+                  </label>
+                  <select
+                    multiple
+                    value={formData.subCategoryIds}
+                    onChange={handleSubCategories}
+                    className="w-full px-4 py-2 border rounded-lg h-32"
+                  >
+                    <option value="65eeab737c177a197b4a111d">Wedding Rings</option>
+                    <option value="65eead997c177a197b4a1120">Engagement Rings</option>
+                    <option value="67fe5db40254f62d3e5fe9d1">Fashion Rings</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-medium mb-1">
+                    Images (select multiple files)
+                  </label>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageFiles}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selecting new images will not automatically remove existing ones on the server.
+                  </p>
+                </div>
+              </div>
+
+              {imagePreview.length > 0 && (
+                <div className="mt-4">
+                  <p className="font-medium mb-2">Image Preview:</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    {imagePreview.map((preview, idx) => (
+                      <div key={idx} className="relative">
+                        <img
+                          src={preview}
+                          alt={`Preview ${idx}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImagePreview(idx)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
 
-          <div className="flex gap-2 mt-6">
-            <button
-              type="submit"
-              disabled={!isFormValid()}
-              className={`flex-1 px-4 py-2 font-medium rounded-md transition-colors ${
-                isFormValid()
-                  ? 'bg-[#E1C6B3] text-white hover:bg-[#E1C6B3]/90'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {editId ? 'Update Category' : 'Add Category'}
-            </button>
-            <button
-              type="button"
-              onClick={cancelEdit}
-              className="px-4 py-2 bg-gray-500 text-white font-medium rounded-md hover:bg-gray-600 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, isActive: e.target.checked }))
+                    }
+                  />
+                  <span>Active</span>
+                </label>
+              </div>
 
-      {/* Existing Categories */}
-      {categories.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-500 text-lg mb-4">There are no categories</p>
-        </div>
-      ) : (
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Existing Categories</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {categories.map((category) => (
-              <div key={category.id} className="bg-white shadow-md rounded-lg p-4 border border-gray-200 hover:shadow-lg transition-shadow">
-                <div className="flex gap-1 mb-2 flex-wrap">
-                  {category.images.slice(0, 4).map((file, index) => (
-                    <img
-                      key={index}
-                      src={URL.createObjectURL(file)}
-                      alt={`Category image ${index + 1}`}
-                      className="w-16 h-16 object-cover rounded-md"
-                    />
-                  ))}
-                  {category.images.length > 4 && (
-                    <span className="text-xs text-gray-500 self-center bg-gray-100 px-2 py-1 rounded">+{category.images.length - 4}</span>
-                  )}
-                </div>
-                <h4 className="font-semibold text-gray-800 mb-1 text-base">{category.name}</h4>
-                <p className="text-sm text-gray-600 mb-1">ID: {category.categoryId}</p>
-                <p className="text-sm text-gray-500 mb-3">Subcategory: {category.subCategory}</p>
-                <div className="flex justify-end gap-2">
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-8 py-3 bg-[#c18154] text-white rounded-lg hover:bg-[#c46c39] disabled:opacity-70"
+                >
+                  {loading ? 'Saving...' : editId ? 'Update' : 'Create'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {loading && categories.length === 0 && (
+          <div className="text-center py-20">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-4 border-[#E1C6B3]"></div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {categories.map((cat) => (
+            <div
+              key={cat._id}
+              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition"
+            >
+              <div className="h-48 bg-gray-100 relative">
+                {cat.imageUrl?.[0] || typeof cat.imageUrl === 'string' ? (
+                  <img
+                    src={
+                      Array.isArray(cat.imageUrl)
+                        ? cat.imageUrl[0]
+                        : cat.imageUrl
+                    }
+                    alt={cat.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-400">
+                    No Image
+                  </div>
+                )}
+              </div>
+
+              <div className="p-5">
+                <h3 className="font-bold text-lg">{cat.name}</h3>
+                <p className="text-sm text-gray-600">ID: {cat.categoryId}</p>
+                <p className="text-xs text-gray-500">
+                  {Array.isArray(cat.subCategoryIds)
+                    ? cat.subCategoryIds.length
+                    : 0}{' '}
+                  subcategories
+                </p>
+
+                <div className="mt-4 flex justify-end gap-4">
                   <button
-                    onClick={() => handleEdit(category)}
-                    className="text-blue-600 hover:underline text-sm font-medium"
+                    onClick={() => startEdit(cat)}
+                    className="text-blue-600 hover:underline"
                   >
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(category.id)}
-                    className="text-red-600 hover:underline text-sm font-medium"
+                    onClick={() => startDelete(cat)}
+                    className="text-red-600 hover:underline"
                   >
                     Delete
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-      )}
+
+        {!loading && categories.length === 0 && !showForm && (
+          <div className="text-center py-20 bg-white rounded-xl shadow">
+            <p className="text-xl text-gray-500 mb-6">No categories yet</p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-6 py-3 bg-[#cd712f] text-white rounded-lg"
+            >
+              Create First Category
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
