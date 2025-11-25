@@ -24,6 +24,8 @@ import Discount from "./Pages/Discount/Discount";
 import Order from "./Pages/Order/Order";
 import OrderDetails from "./Pages/Order/OrderDetails";
 import Invoice from "./Pages/Order/Invoice";
+import Blogs from "./Pages/Blog/Blogs";
+
 
 function App() {
   return (
@@ -58,6 +60,7 @@ function App() {
         <Route path="order" element={<Order />} />
         <Route path="order/:id" element={<OrderDetails />} />  
         <Route path="order/invoice/:id" element={<Invoice />} /> 
+        <Route path="blog" element={<Blogs />} />
       </Route>
 
     </Routes>

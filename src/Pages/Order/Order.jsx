@@ -1,8 +1,23 @@
 import React, { useEffect, useState } from "react";
-import { Search, Filter, Eye, Printer, Truck, PackageCheck } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Eye,
+  Truck,
+  PackageCheck,
+  Printer,
+} from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchAllOrders,
+  updateOrderStatus,
+  fetchOrderById,
+} from "../../redux/OrderSlice";
 
 export default function Order() {
-  const [orders, setOrders] = useState([]);
+  const dispatch = useDispatch();
+  const { orders, loading, error } = useSelector((state) => state.orders);
+
   const [filteredOrders, setFilteredOrders] = useState([]);
 
   const [search, setSearch] = useState("");
@@ -10,25 +25,18 @@ export default function Order() {
 
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // Load Orders from LocalStorage (initial load)
+  // LOAD ORDERS FROM API
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("orders")) || [];
-    setOrders(saved);
-    setFilteredOrders(saved);
-  }, []);
+    dispatch(fetchAllOrders({ page: 1, limit: 50 }));
+  }, [dispatch]);
 
-  // Save Orders to LocalStorage when changed
+  // FILTER WHEN ORDERS CHANGE
   useEffect(() => {
-    localStorage.setItem("orders", JSON.stringify(orders));
-    applyFilters();
+    setFilteredOrders(orders || []);
   }, [orders]);
 
-  // Apply search + status filters
+  // APPLY FILTERS
   useEffect(() => {
-    applyFilters();
-  }, [search, statusFilter]);
-
-  function applyFilters() {
     let data = [...orders];
 
     if (search.trim() !== "") {
@@ -42,124 +50,58 @@ export default function Order() {
     }
 
     setFilteredOrders(data);
+  }, [search, statusFilter, orders]);
+
+  // UPDATE ORDER STATUS USING API
+  const handleStatusUpdate = (order) => {
+    let nextStatus =
+      order.status === "pending"
+        ? "processing"
+        : order.status === "processing"
+        ? "shipped"
+        : order.status === "shipped"
+        ? "delivered"
+        : order.status;
+
+    dispatch(updateOrderStatus({ id: order._id, status: nextStatus }))
+      .unwrap()
+      .then(() => dispatch(fetchAllOrders({ page: 1, limit: 50 })));
+  };
+
+  // OPEN MODAL WITH FULL API DATA
+  const openOrderDetails = (order) => {
+    dispatch(fetchOrderById(order._id)).then((res) => {
+      setSelectedOrder(res.payload);
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="w-10 h-10 border-4 border-[#c46c39] border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-lg font-medium text-gray-700">
+          Loading orders...
+        </p>
+      </div>
+    );
   }
 
-  // Update order status
-  const updateStatus = (orderId) => {
-    const updated = orders.map((o) => {
-      if (o._id === orderId) {
-        let nextStatus =
-          o.status === "pending"
-            ? "shipped"
-            : o.status === "shipped"
-            ? "delivered"
-            : o.status;
-
-        return { ...o, status: nextStatus };
-      }
-      return o;
-    });
-
-    setOrders(updated);
-  };
-
-  // View order detail modal
-  const viewOrder = (order) => {
-    setSelectedOrder(order);
-  };
-
-  // Generate Printable Invoice
-  const printInvoice = () => {
-    const invoiceWindow = window.open("", "PRINT", "height=600,width=800");
-
-    invoiceWindow.document.write(`
-      <html>
-        <head>
-          <title>Invoice - ${selectedOrder.orderNumber}</title>
-          <style>
-            body { font-family: Arial; padding: 20px; }
-            h2 { border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            td, th { border: 1px solid #ccc; padding: 8px; }
-            .section { margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <h2>Invoice - ${selectedOrder.orderNumber}</h2>
-
-          <div class="section">
-            <h3>Shipping Address</h3>
-            <p>${selectedOrder.shippingAddress.name}</p>
-            <p>${selectedOrder.shippingAddress.addressLine1}, ${
-      selectedOrder.shippingAddress.city
-    }</p>
-            <p>${selectedOrder.shippingAddress.state} - ${
-      selectedOrder.shippingAddress.pinCode
-    }</p>
-            <p>${selectedOrder.shippingAddress.country}</p>
-            <p>${selectedOrder.shippingAddress.phone}</p>
-          </div>
-
-          <div class="section">
-            <h3>Payment Info</h3>
-            <p>Method: ${selectedOrder.paymentMethod}</p>
-            <p>Status: ${selectedOrder.paymentStatus}</p>
-            <p>Subtotal: ₹${selectedOrder.subtotal}</p>
-            <p>Discount: ₹${selectedOrder.totalDiscountAmount}</p>
-            <p>Tax: ₹${selectedOrder.taxAmount}</p>
-            <p>Shipping: ₹${selectedOrder.shippingCharge}</p>
-            <p><strong>Total: ₹${selectedOrder.total}</strong></p>
-          </div>
-
-          <div class="section">
-            <h3>Order Items</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-              ${selectedOrder.items
-                .map(
-                  (item) => `
-                <tr>
-                  <td>${item.productName}</td>
-                  <td>${item.quantity}</td>
-                  <td>₹${item.priceAtPurchase}</td>
-                  <td>₹${item.itemTotal}</td>
-                </tr>
-              `
-                )
-                .join("")}
-              </tbody>
-            </table>
-          </div>
-
-          <script>
-            window.print();
-          </script>
-        </body>
-      </html>
-    `);
-
-    invoiceWindow.document.close();
-  };
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <p className="text-red-600 text-lg font-medium">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
-      {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Orders</h1>
       </div>
 
       {/* FILTER BAR */}
       <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
-
-        {/* Search */}
         <div className="flex items-center border rounded-lg px-3 py-2 w-full md:w-1/3 bg-white shadow-sm">
           <Search size={18} className="text-gray-500" />
           <input
@@ -171,7 +113,6 @@ export default function Order() {
           />
         </div>
 
-        {/* Status Filter */}
         <div className="flex items-center gap-2">
           <Filter size={18} className="text-gray-600" />
           <select
@@ -181,12 +122,11 @@ export default function Order() {
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
           </select>
         </div>
-
       </div>
 
       {/* ORDER TABLE */}
@@ -222,23 +162,21 @@ export default function Order() {
                   <td className="p-3 flex justify-center gap-3">
                     <button
                       className="text-blue-600 hover:text-blue-800"
-                      onClick={() => viewOrder(o)}
+                      onClick={() => openOrderDetails(o)}
                     >
                       <Eye size={20} />
                     </button>
 
                     <button
                       className="text-green-600 hover:text-green-800"
-                      onClick={() => updateStatus(o._id)}
+                      onClick={() => handleStatusUpdate(o)}
                     >
                       {o.status === "pending" && <Truck size={20} />}
+                      {o.status === "processing" && <Truck size={20} />}
                       {o.status === "shipped" && <PackageCheck size={20} />}
                     </button>
 
-                    <button
-                      className="text-gray-700 hover:text-black"
-                      onClick={printInvoice}
-                    >
+                    <button className="text-gray-700 hover:text-black">
                       <Printer size={20} />
                     </button>
                   </td>
@@ -253,12 +191,11 @@ export default function Order() {
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-3xl shadow-lg overflow-y-auto max-h-[85vh]">
-            
             <h2 className="text-xl font-semibold mb-4">
               Order Details — {selectedOrder.orderNumber}
             </h2>
 
-            {/* SHIPPING ADDRESS */}
+            {/* SHIPPING */}
             <div className="bg-gray-100 p-4 rounded mb-3">
               <h3 className="font-semibold mb-1">Shipping Address</h3>
               <p>{selectedOrder.shippingAddress.name}</p>
@@ -267,19 +204,17 @@ export default function Order() {
                 {selectedOrder.shippingAddress.city},{" "}
                 {selectedOrder.shippingAddress.state}
               </p>
-              <p>{selectedOrder.shippingAddress.country}</p>
             </div>
 
             {/* BILLING */}
             <div className="bg-gray-100 p-4 rounded mb-3">
               <h3 className="font-semibold mb-1">Billing Address</h3>
               <p>{selectedOrder.billingAddress.name}</p>
-              <p>{selectedOrder.billingAddress.addressLine1}</p>
             </div>
 
-            {/* PAYMENT INFO */}
+            {/* PAYMENT */}
             <div className="bg-gray-100 p-4 rounded mb-3">
-              <h3 className="font-semibold mb-2">Payment Info</h3>
+              <h3 className="font-semibold">Payment Info</h3>
               <p>Method: {selectedOrder.paymentMethod}</p>
               <p>Status: {selectedOrder.paymentStatus}</p>
               <p>Total: ₹{selectedOrder.total}</p>

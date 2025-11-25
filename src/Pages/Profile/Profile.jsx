@@ -13,8 +13,11 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-xl text-gray-600">Loading profile...</div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+        <div className="w-10 h-10 border-4 border-[#c46c39] border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-lg font-medium text-gray-700">
+          Loading profile...
+        </p>
       </div>
     );
   }
@@ -40,7 +43,6 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-
         {/* Header */}
         <div
           className="p-8 text-white"
@@ -64,13 +66,14 @@ export default function Profile() {
 
         {/* Profile Details */}
         <div className="p-8 space-y-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2 border-l-4 pl-3"
-              style={{ borderColor: "#c46c39" }}>
+          <h2
+            className="text-xl font-semibold text-gray-800 mb-2 border-l-4 pl-3"
+            style={{ borderColor: "#c46c39" }}
+          >
             Personal Information
           </h2>
 
           <div className="grid md:grid-cols-2 gap-6">
-
             {/* Name */}
             <div className="flex items-start space-x-4 bg-gray-50 p-5 rounded-xl shadow-sm hover:shadow-md transition">
               <div
@@ -115,7 +118,9 @@ export default function Profile() {
               </div>
 
               <div>
-                <p className="text-sm text-gray-500 font-medium">Phone Number</p>
+                <p className="text-sm text-gray-500 font-medium">
+                  Phone Number
+                </p>
                 <p className="text-lg font-semibold text-gray-900 mt-1">
                   {user.phoneNumber || "Not Provided"}
                 </p>
@@ -123,7 +128,6 @@ export default function Profile() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

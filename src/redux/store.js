@@ -6,6 +6,9 @@ import categoryReducer from './CategorySlice';
 import voucherReducer from "./VoucherSlice"; 
 import desktopBannerReducer from './DesktopBannerSlice';
 import discountReducer  from './DiscountSlice';  
+import orderReducer from './OrderSlice';
+import productReducer  from './ProductSlice';
+import blogReducer from './BlogSlice';
 
 
 export const store = configureStore({
@@ -16,6 +19,9 @@ export const store = configureStore({
     desktopBanner: desktopBannerReducer,
     voucher: voucherReducer,
     discount: discountReducer,
+    orders: orderReducer,
+    products: productReducer,
+    blogs: blogReducer,
   },
 });
 
