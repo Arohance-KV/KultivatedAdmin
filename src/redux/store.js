@@ -9,6 +9,7 @@ import discountReducer  from './DiscountSlice';
 import orderReducer from './OrderSlice';
 import productReducer  from './ProductSlice';
 import blogReducer from './BlogSlice';
+import UploadImgReducer from './UploadImgSlice';
 
 
 export const store = configureStore({
@@ -22,6 +23,7 @@ export const store = configureStore({
     orders: orderReducer,
     products: productReducer,
     blogs: blogReducer,
+    upload: UploadImgReducer,
   },
 });
 

@@ -1062,18 +1062,6 @@ const Product = () => {
             </div>
           </div>
         );
-      case 7: {
-        const payload = buildPayload();
-        return (
-          <div className="space-y-4 text-sm">
-            <CardSection title="Overview">
-              <pre className="bg-gray-50 p-3 rounded max-h-80 overflow-auto text-xs">
-                {JSON.stringify(payload, null, 2)}
-              </pre>
-            </CardSection>
-          </div>
-        );
-      }
       default:
         return null;
     }

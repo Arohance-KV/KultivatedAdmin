@@ -12,18 +12,61 @@ const handleResponse = async (response) => {
   return data;
 };
 
-// Create Category with File Upload - POST /category
+// Create Category - POST /category (JSON with image URLs)
 export const createCategory = createAsyncThunk(
   'category/createCategory',
-  async (formData, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
+      console.log('📤 Creating category with payload:', payload);
+      
       const response = await fetch(`${BASE_URL}/category`, {
         method: 'POST',
-        // Don't set Content-Type header - let browser set it with boundary
-        body: formData, // FormData object
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
-      return await handleResponse(response);
+
+      console.log('📥 Response status:', response.status);
+      const responseData = await response.json();
+      console.log('📥 Response data:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to create category');
+      }
+      return responseData;
     } catch (err) {
+      console.error('❌ Create error:', err.message);
+      return rejectWithValue(err.message);
+    }
+  }
+);
+
+// Update Category - PUT /category/:categoryId (JSON with image URLs)
+export const updateCategory = createAsyncThunk(
+  'category/updateCategory',
+  async ({ categoryId, updateData }, { rejectWithValue }) => {
+    try {
+      console.log(`📤 Updating category ${categoryId}:`, updateData);
+      
+      const response = await fetch(`${BASE_URL}/category/${categoryId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      console.log('📥 Response status:', response.status);
+      const responseData = await response.json();
+      console.log('📥 Response data:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to update category');
+      }
+      return responseData;
+    } catch (err) {
+      console.error('❌ Update error:', err.message);
       return rejectWithValue(err.message);
     }
   }
@@ -34,26 +77,7 @@ export const getCategories = createAsyncThunk(
   'category/getCategories',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch(`${BASE_URL}/category`, {
-        method: 'GET',
-      });
-      return await handleResponse(response);
-    } catch (err) {
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-// Update Category with File Upload - PUT /category/:categoryId
-export const updateCategory = createAsyncThunk(
-  'category/updateCategory',
-  async ({ categoryId, updateData }, { rejectWithValue }) => {
-    try {
-      const response = await fetch(`${BASE_URL}/category/${categoryId}`, {
-        method: 'PUT',
-        // Don't set Content-Type header for FormData
-        body: updateData, // FormData object
-      });
+      const response = await fetch(`${BASE_URL}/category`);
       return await handleResponse(response);
     } catch (err) {
       return rejectWithValue(err.message);
@@ -76,7 +100,7 @@ export const deleteCategory = createAsyncThunk(
   }
 );
 
-// Add Product to Category - POST /category/:categoryId/product
+// Add Product to Category
 export const addProductToCategory = createAsyncThunk(
   'category/addProductToCategory',
   async ({ categoryId, productId }, { rejectWithValue }) => {
@@ -96,7 +120,7 @@ export const addProductToCategory = createAsyncThunk(
   }
 );
 
-// Get Products in a Category - GET /category/:categoryId/products
+// Get Products by Category
 export const getProductsByCategory = createAsyncThunk(
   'category/getProductsByCategory',
   async (categoryId, { rejectWithValue }) => {
@@ -110,7 +134,7 @@ export const getProductsByCategory = createAsyncThunk(
   }
 );
 
-// Remove Product from Category - DELETE /category/:categoryId/products/:productId
+// Remove Product from Category
 export const removeProductFromCategory = createAsyncThunk(
   'category/removeProductFromCategory',
   async ({ categoryId, productId }, { rejectWithValue }) => {
@@ -212,7 +236,6 @@ const categorySlice = createSlice({
       })
       .addCase(deleteCategory.fulfilled, (state, action) => {
         state.loading = false;
-        // Try to get deleted id from response, fallback to arg we sent into thunk
         const deletedId =
           action.payload?.data?.deletedCategory?._id ?? action.meta?.arg;
 

@@ -1,41 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Upload, X, Image, Check, Plus, Smartphone, Edit2, Trash2, Eye,
-  LayoutGrid, List
+  LayoutGrid, List, AlertCircle, CheckCircle, Loader
 } from 'lucide-react';
 
+// ===== Redux Imports =====
+import { useDispatch, useSelector } from "react-redux";
+import {
+  createMobileBanner,
+  getAllMobileBanners,
+  deleteMobileBanner,
+  updateMobileBanner
+} from "../../redux/MobileBannerSlice";
+import { uploadImageAsync, clearUploadedImages } from "../../redux/UploadImgSlice";
+
 export default function MobileBannerManagement() {
+  const dispatch = useDispatch();
+
+  // ===== GLOBAL STATE =====
+  const mobileBannerState = useSelector((state) => state.mobileBanner);
+  const uploadState = useSelector((state) => state.upload);
+
+  // Provide defaults to prevent destructuring errors
+  const { 
+    banners = [], 
+    loading = false, 
+    error = null, 
+    success = false 
+  } = mobileBannerState || {};
+
+  const { 
+    imageUrls = [], 
+    loading: uploadLoading = false, 
+    error: uploadError = null 
+  } = uploadState || {};
+
   const [showForm, setShowForm] = useState(false);
   const [bannerName, setBannerName] = useState('');
+  const [bannerLink, setBannerLink] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [banners, setBanners] = useState([]);
 
   const [viewMode, setViewMode] = useState("grid");
 
   // Edit Modal
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editBannerId, setEditBannerId] = useState(null);
+  const [editBanner, setEditBanner] = useState(null);
   const [editName, setEditName] = useState('');
-  const [editImage, setEditImage] = useState(null);
+  const [editLink, setEditLink] = useState('');
   const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
 
-  // ---------------- FILE UPLOAD HANDLING ----------------
+  // ================== GET ALL BANNERS ==================
+  useEffect(() => {
+    dispatch(getAllMobileBanners());
+  }, [dispatch]);
+
+  // ================== HANDLE IMAGE UPLOAD ==================
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image file');
-      return;
+    if (file && file.type.startsWith("image/")) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result);
+      reader.readAsDataURL(file);
     }
-
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
   };
 
   const handleRemoveImage = () => {
@@ -43,106 +73,182 @@ export default function MobileBannerManagement() {
     setImagePreview(null);
   };
 
-  // ---------------- ADD NEW MOBILE BANNER ----------------
-  const handleSubmit = (e) => {
+  // ================== ADD NEW MOBILE BANNER ==================
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!bannerName.trim()) return alert("Please enter banner name");
-    if (!imageFile) return alert("Please upload an image");
+    if (!bannerName.trim()) return alert("Enter banner name");
+    if (!bannerLink.trim()) return alert("Enter banner link");
+    if (!imagePreview) return alert("Select image");
 
-    setIsSubmitting(true);
+    try {
+      // If we have an actual file, upload it first
+      if (imageFile) {
+        const uploadRes = await dispatch(uploadImageAsync(imageFile));
+        
+        if (uploadRes.meta.requestStatus === "fulfilled") {
+          const uploadedImageUrl = uploadRes.payload?.[0] || imagePreview;
 
-    setTimeout(() => {
-      const newBanner = {
-        id: Date.now(),
-        name: bannerName,
-        image: imagePreview,
-        fileName: imageFile.name,
-        fileSize: (imageFile.size / 1024).toFixed(2),
-        uploadDate: new Date().toLocaleDateString(),
-      };
+          const payload = {
+            name: bannerName,
+            link: bannerLink,
+            imageUrl: uploadedImageUrl,
+          };
 
-      setBanners([...banners, newBanner]);
-      setSuccessMessage("Mobile banner uploaded successfully!");
-      setIsSubmitting(false);
+          const res = await dispatch(createMobileBanner(payload));
 
-      setTimeout(() => {
-        setBannerName('');
-        setImageFile(null);
-        setImagePreview(null);
-        setSuccessMessage('');
-        setShowForm(false);
-      }, 1500);
-    }, 1500);
-  };
+          if (res.meta.requestStatus === "fulfilled") {
+            setSuccessMessage("Banner uploaded successfully!");
+            
+            // Refresh banners list
+            await dispatch(getAllMobileBanners());
+            
+            setTimeout(() => {
+              setBannerName("");
+              setBannerLink("");
+              setImageFile(null);
+              setImagePreview(null);
+              setShowForm(false);
+              setSuccessMessage("");
+              dispatch(clearUploadedImages());
+            }, 1500);
+          } else {
+            alert("Failed to create banner. Please try again.");
+          }
+        } else {
+          alert("Failed to upload image. Please try again.");
+        }
+      } else {
+        // If no file, use the preview directly (for existing images in edit)
+        const payload = {
+          name: bannerName,
+          link: bannerLink,
+          imageUrl: imagePreview,
+        };
 
-  // ---------------- DELETE BANNER ----------------
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this banner?")) {
-      setBanners(banners.filter(b => b.id !== id));
+        const res = await dispatch(createMobileBanner(payload));
+
+        if (res.meta.requestStatus === "fulfilled") {
+          setSuccessMessage("Banner uploaded successfully!");
+          
+          // Refresh banners list
+          await dispatch(getAllMobileBanners());
+          
+          setTimeout(() => {
+            setBannerName("");
+            setBannerLink("");
+            setImageFile(null);
+            setImagePreview(null);
+            setShowForm(false);
+            setSuccessMessage("");
+          }, 1500);
+        } else {
+          alert("Failed to create banner. Please try again.");
+        }
+      }
+    } catch (error) {
+      alert("Error uploading banner. Please try again.");
+      console.error(error);
     }
   };
 
-  // ---------------- OPEN EDIT MODAL ----------------
+  // ================== DELETE ==================
+  const handleDelete = (id) => {
+    if (window.confirm("Delete this banner?")) {
+      dispatch(deleteMobileBanner(id)).then(() => {
+        // Refresh banners list after delete
+        dispatch(getAllMobileBanners());
+      });
+    }
+  };
+
+  // ================== OPEN EDIT MODAL ==================
   const openEditModal = (banner) => {
-    setEditBannerId(banner.id);
+    setEditBanner(banner);
     setEditName(banner.name);
-    setEditImage(banner.image);
+    setEditLink(banner.link);
+    setEditImagePreview(banner.imageUrl);
     setEditImageFile(null);
     setIsEditOpen(true);
   };
 
-  // ---------------- HANDLE EDIT IMAGE ----------------
   const handleEditImageChange = (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) return;
-
-    setEditImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => setEditImage(reader.result);
-    reader.readAsDataURL(file);
+    if (file?.type.startsWith("image/")) {
+      setEditImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setEditImagePreview(reader.result);
+      reader.readAsDataURL(file);
+    }
   };
 
-  // ---------------- SAVE EDITED BANNER ----------------
-  const saveEditedBanner = () => {
-    if (!editName.trim()) return alert("Banner name required");
+  // ================== SAVE EDITED BANNER ==================
+  const saveEditedBanner = async () => {
+    if (!editBanner) return;
 
-    const updated = banners.map((b) =>
-      b.id === editBannerId
-        ? {
-            ...b,
-            name: editName,
-            image: editImage,
-            fileName: editImageFile ? editImageFile.name : b.fileName,
-            fileSize: editImageFile
-              ? (editImageFile.size / 1024).toFixed(2)
-              : b.fileSize,
-          }
-        : b
-    );
+    try {
+      let finalImageUrl = editImagePreview;
 
-    setBanners(updated);
-    setIsEditOpen(false);
+      // If a new image was selected, upload it first
+      if (editImageFile) {
+        const uploadRes = await dispatch(uploadImageAsync(editImageFile));
+        
+        if (uploadRes.meta.requestStatus === "fulfilled") {
+          finalImageUrl = uploadRes.payload?.[0] || editImagePreview;
+        } else {
+          alert("Failed to upload image. Please try again.");
+          return;
+        }
+      }
+
+      const payload = {
+        id: editBanner._id,
+        updates: {
+          name: editName,
+          link: editLink,
+          imageUrl: finalImageUrl,
+        },
+      };
+
+      const res = await dispatch(updateMobileBanner(payload));
+      if (res.meta.requestStatus === "fulfilled") {
+        setIsEditOpen(false);
+        dispatch(clearUploadedImages());
+        
+        // Refresh banners list after update
+        await dispatch(getAllMobileBanners());
+      } else {
+        alert("Failed to update banner. Please try again.");
+      }
+    } catch (error) {
+      alert("Error updating banner. Please try again.");
+      console.error(error);
+    }
   };
 
-  // ---------------- UI STARTS ----------------
+  const brandColor = "#c46c39";
+  const brandColorLight = "#f0e6dc";
+  const brandColorDark = "#a55a2a";
+
+  // ===================== UI =====================
   return (
-    <div className="min-h-screen bg-linear-to-br from-pink-50 to-purple-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen" style={{ backgroundColor: "#f9f6f2" }}>
+      <div className="max-w-7xl mx-auto px-4 py-8">
 
         {/* HEADER */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-          <div className="flex flex-col md:flex-row justify-between gap-4">
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div>
-              <h1 className="text-4xl font-bold text-slate-800 mb-2">Mobile Banner Management</h1>
-              <p className="text-slate-600 text-lg">Manage your mobile website banners</p>
+              <h1 className="text-5xl font-bold mb-2" style={{ color: brandColor }}>
+                Mobile Banner Management
+              </h1>
+              <p className="text-gray-600 text-lg">Create, edit, and manage promotional banners for your mobile platform</p>
             </div>
 
             <button
               onClick={() => setShowForm(!showForm)}
-              className="bg-linear-to-r from-pink-600 to-purple-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 font-semibold hover:shadow-lg hover:scale-105 transition"
+              style={{ backgroundColor: brandColor }}
+              className="text-white px-8 py-3 rounded-xl flex items-center gap-2 font-semibold hover:shadow-xl transition-all duration-300 hover:scale-105 whitespace-nowrap"
             >
               <Plus className="w-5 h-5" /> Add Banner
             </button>
@@ -150,16 +256,16 @@ export default function MobileBannerManagement() {
         </div>
 
         {/* STATS + VIEW SWITCH */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 flex justify-between items-center">
+        <div className="bg-white rounded-2xl shadow-md p-6 mb-8 flex justify-between items-center border-l-4" style={{ borderColor: brandColor }}>
 
           <div className="flex items-center gap-4">
-            <div className="bg-pink-100 p-4 rounded-xl">
-              <Smartphone className="w-8 h-8 text-pink-600" />
+            <div className="p-4 rounded-xl" style={{ backgroundColor: brandColorLight }}>
+              <Smartphone className="w-8 h-8" style={{ color: brandColor }} />
             </div>
 
             <div>
-              <p className="text-sm text-slate-600 font-medium">Total Mobile Banners</p>
-              <p className="text-3xl font-bold text-slate-800">{banners.length}</p>
+              <p className="text-sm text-gray-500 font-medium">Total Mobile Banners</p>
+              <p className="text-4xl font-bold" style={{ color: brandColor }}>{banners.length}</p>
             </div>
           </div>
 
@@ -167,20 +273,32 @@ export default function MobileBannerManagement() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setViewMode("grid")}
-              className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition
-                ${viewMode === "grid"
-                  ? "border-pink-500 bg-pink-50 text-pink-600 shadow-md"
-                  : "border-pink-300 text-pink-500 hover:bg-pink-50"}`}
+              className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all duration-300 ${
+                viewMode === "grid"
+                  ? "shadow-lg scale-110"
+                  : "hover:scale-105"
+              }`}
+              style={{
+                borderColor: viewMode === "grid" ? brandColor : "#e5e7eb",
+                backgroundColor: viewMode === "grid" ? brandColorLight : "transparent",
+                color: viewMode === "grid" ? brandColor : "#9ca3af"
+              }}
             >
               <LayoutGrid className="w-6 h-6" />
             </button>
 
             <button
               onClick={() => setViewMode("list")}
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition
-                ${viewMode === "list"
-                  ? "bg-linear-to-br from-pink-500 to-pink-600 text-white shadow-xl"
-                  : "bg-linear-to-br from-pink-200 to-pink-300 text-white opacity-70 hover:opacity-100"}`}
+              className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all duration-300 ${
+                viewMode === "list"
+                  ? "shadow-lg scale-110"
+                  : "hover:scale-105"
+              }`}
+              style={{
+                borderColor: viewMode === "list" ? brandColor : "#e5e7eb",
+                backgroundColor: viewMode === "list" ? brandColorLight : "transparent",
+                color: viewMode === "list" ? brandColor : "#9ca3af"
+              }}
             >
               <List className="w-6 h-6" />
             </button>
@@ -190,42 +308,61 @@ export default function MobileBannerManagement() {
 
         {/* ADD FORM */}
         {showForm && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 mb-6 border-2 border-pink-200">
+          <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border-l-4" style={{ borderColor: brandColor }}>
 
             <div className="flex justify-between mb-6">
-              <h2 className="text-2xl font-bold text-slate-800">Upload Mobile Banner</h2>
-              <button onClick={() => setShowForm(false)}>
-                <X className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+              <h2 className="text-3xl font-bold" style={{ color: brandColor }}>Upload Mobile Banner</h2>
+              <button onClick={() => setShowForm(false)} className="hover:bg-gray-100 p-2 rounded-lg transition">
+                <X className="w-6 h-6 text-gray-500 hover:text-gray-700" />
               </button>
             </div>
 
             <div className="space-y-6">
 
+              {/* NAME */}
               <div>
-                <label className="block text-sm font-semibold mb-2">Banner Name *</label>
+                <label className="block text-sm font-semibold mb-2" style={{ color: brandColor }}>Banner Name *</label>
                 <input
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-pink-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none transition"
+                  style={{ focusBorderColor: brandColor }}
+                  onFocus={(e) => e.target.style.borderColor = brandColor}
+                  onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
                   value={bannerName}
                   onChange={(e) => setBannerName(e.target.value)}
                   placeholder="Enter mobile banner name"
                 />
               </div>
 
+              {/* LINK */}
               <div>
-                <label className="block text-sm font-semibold mb-2">Banner Image *</label>
+                <label className="block text-sm font-semibold mb-2" style={{ color: brandColor }}>Banner Link *</label>
+                <input
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none transition"
+                  onFocus={(e) => e.target.style.borderColor = brandColor}
+                  onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
+                  value={bannerLink}
+                  onChange={(e) => setBannerLink(e.target.value)}
+                  placeholder="https://example.com"
+                />
+              </div>
+
+              {/* IMAGE */}
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: brandColor }}>Banner Image *</label>
 
                 {!imagePreview ? (
-                  <label className="block border-2 border-dashed border-slate-300 p-8 text-center rounded-lg cursor-pointer hover:bg-pink-50 hover:border-pink-500 transition">
+                  <label className="block border-2 border-dashed border-gray-300 p-8 text-center rounded-xl cursor-pointer hover:bg-opacity-50 transition" style={{ backgroundColor: brandColorLight }}>
                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                    <Upload className="w-12 h-12 mx-auto text-slate-400 mb-2" />
-                    <p className="text-slate-600 font-medium">Click to upload mobile banner</p>
+                    <Upload className="w-12 h-12 mx-auto mb-2" style={{ color: brandColor }} />
+                    <p className="font-medium" style={{ color: brandColor }}>Click to upload banner image</p>
+                    <p className="text-sm text-gray-500 mt-1">PNG, JPG, AVIF up to 10MB</p>
                   </label>
                 ) : (
-                  <div className="relative border-2 border-slate-200 p-4 rounded-lg">
+                  <div className="relative border-2 border-gray-200 p-4 rounded-xl">
                     <img src={imagePreview} className="w-full h-64 object-cover rounded-lg" />
                     <button
                       onClick={handleRemoveImage}
-                      className="absolute top-6 right-6 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
+                      className="absolute top-6 right-6 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition shadow-lg"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -233,23 +370,46 @@ export default function MobileBannerManagement() {
                 )}
               </div>
 
+              {/* ERROR MESSAGES */}
+              {error && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-red-700">{error}</span>
+                </div>
+              )}
+
+              {uploadError && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-red-700">{uploadError}</span>
+                </div>
+              )}
+
+              {/* SUCCESS MESSAGE */}
               {successMessage && (
-                <div className="bg-green-50 border-2 border-green-200 p-4 rounded-lg flex items-center">
-                  <Check className="w-5 h-5 text-green-600 mr-3" />
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg flex gap-3 items-center">
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
                   <span className="text-green-700">{successMessage}</span>
                 </div>
               )}
 
+              {/* SUBMIT */}
               <button
                 onClick={handleSubmit}
-                disabled={isSubmitting}
-                className={`w-full py-3 px-6 text-white font-semibold rounded-lg transition
-                  ${isSubmitting
-                    ? "bg-slate-400 cursor-not-allowed"
-                    : "bg-linear-to-r from-pink-600 to-purple-600 hover:shadow-lg"}`}
+                disabled={loading || uploadLoading}
+                style={{ backgroundColor: brandColor }}
+                className="w-full py-3 px-6 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
               >
-                {isSubmitting ? "Uploading..." : "Upload Banner"}
+                {loading || uploadLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Upload Banner"
+                )}
               </button>
+
             </div>
 
           </div>
@@ -257,10 +417,10 @@ export default function MobileBannerManagement() {
 
         {/* BANNER LIST */}
         {banners.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-lg p-16 text-center">
-            <Smartphone className="w-16 h-16 mx-auto text-pink-600" />
-            <h3 className="text-2xl font-bold mt-4 text-slate-800">No mobile banners yet</h3>
-            <p className="text-slate-600 mt-2">Click “Add Banner” to upload your first banner</p>
+          <div className="bg-white rounded-2xl shadow-md p-16 text-center">
+            <Smartphone className="w-16 h-16 mx-auto mb-4" style={{ color: brandColor }} />
+            <h3 className="text-2xl font-bold mt-4" style={{ color: brandColor }}>No mobile banners yet</h3>
+            <p className="text-gray-600 mt-2">Click "Add Banner" to upload your first banner</p>
           </div>
         ) : (
 
@@ -270,43 +430,49 @@ export default function MobileBannerManagement() {
 
             {banners.map((banner) => (
               <div
-                key={banner.id}
-                className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition overflow-hidden
+                key={banner._id}
+                className={`bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden border-t-4 group
                 ${viewMode === "list" ? "flex items-center h-48" : ""}`}
+                style={{ borderColor: brandColor }}
               >
 
-                <div className={`${viewMode === "list" ? "w-48 h-full" : "h-48"} relative`}>
-                  <img src={banner.image} className="w-full h-full object-cover" />
+                <div className={`${viewMode === "list" ? "w-48 h-full" : "h-48"} relative overflow-hidden`}>
+                  <img src={banner.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={banner.name} />
 
-                  <div className="absolute top-3 right-3 bg-pink-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1">
+                  <div className="absolute top-3 right-3 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1 font-semibold" style={{ backgroundColor: brandColor }}>
                     <Smartphone className="w-3 h-3" /> Mobile
                   </div>
                 </div>
 
-                <div className={`p-5 ${viewMode === "list" ? "flex-1" : ""}`}>
-                  <h3 className="text-lg font-bold mb-2 truncate">{banner.name}</h3>
+                <div className={`p-5 ${viewMode === "list" ? "flex-1 flex flex-col justify-between" : ""}`}>
+                  <div>
+                    <h3 className="text-lg font-bold mb-2 truncate" style={{ color: brandColor }}>{banner.name}</h3>
 
-                  <div className="space-y-1 text-sm text-slate-600 mb-4">
-                    <p className="flex items-center gap-2"><Image className="w-4 h-4" /> {banner.fileName}</p>
-                    <p>Size: {banner.fileSize} KB</p>
-                    <p>Uploaded: {banner.uploadDate}</p>
+                    <p className="text-sm mb-3 break-all hover:underline cursor-pointer" style={{ color: brandColor }}>
+                      {banner.link}
+                    </p>
+
+                    <div className="space-y-1 text-sm text-gray-500 mb-4">
+                      <p>Created: {new Date(banner.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">
-                    <button className="flex-1 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
+                    <button className="flex-1 border-2 border-gray-200 hover:bg-gray-50 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition font-medium" style={{ color: brandColor }}>
                       <Eye className="w-4 h-4" /> View
                     </button>
 
                     <button
                       onClick={() => openEditModal(banner)}
-                      className="flex-1 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg flex items-center justify-center gap-2"
+                      className="flex-1 border-2 px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition font-medium hover:shadow-md"
+                      style={{ borderColor: brandColor, color: brandColor, backgroundColor: brandColorLight }}
                     >
                       <Edit2 className="w-4 h-4" /> Edit
                     </button>
 
                     <button
-                      onClick={() => handleDelete(banner.id)}
-                      className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg"
+                      onClick={() => handleDelete(banner._id)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition font-medium hover:shadow-md"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -320,53 +486,92 @@ export default function MobileBannerManagement() {
 
       </div>
 
-      {/* ----------- EDIT MODAL ----------- */}
+      {/* ===================== EDIT MODAL ===================== */}
       {isEditOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center px-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 animate-fadeIn">
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center px-4 z-50">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 border-l-4" style={{ borderColor: brandColor }}>
 
             <div className="flex justify-between mb-4">
-              <h2 className="text-2xl font-bold text-slate-800">Edit Mobile Banner</h2>
-              <button onClick={() => setIsEditOpen(false)}>
-                <X className="w-6 h-6 text-slate-500 hover:text-slate-700" />
+              <h2 className="text-2xl font-bold" style={{ color: brandColor }}>Edit Mobile Banner</h2>
+              <button onClick={() => setIsEditOpen(false)} className="hover:bg-gray-100 p-2 rounded-lg transition">
+                <X className="w-6 h-6 text-gray-500" />
               </button>
             </div>
 
             <div className="space-y-5">
 
+              {/* NAME */}
               <div>
-                <label className="font-semibold text-slate-700 mb-2 block">Banner Name *</label>
+                <label className="font-semibold text-sm mb-2 block" style={{ color: brandColor }}>Banner Name *</label>
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-pink-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none transition"
+                  onFocus={(e) => e.target.style.borderColor = brandColor}
+                  onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
                 />
               </div>
 
+              {/* LINK */}
               <div>
-                <label className="font-semibold text-slate-700 mb-2 block">Banner Image *</label>
+                <label className="font-semibold text-sm mb-2 block" style={{ color: brandColor }}>Banner Link *</label>
+                <input
+                  value={editLink}
+                  onChange={(e) => setEditLink(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none transition"
+                  onFocus={(e) => e.target.style.borderColor = brandColor}
+                  onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
+                />
+              </div>
 
-                <label className="block border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-pink-500 hover:bg-pink-50 transition">
+              {/* IMAGE */}
+              <div>
+                <label className="font-semibold text-sm mb-2 block" style={{ color: brandColor }}>Banner Image *</label>
+
+                <label className="block border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:bg-opacity-50 transition" style={{ backgroundColor: brandColorLight }}>
                   <input
                     type="file"
                     className="hidden"
                     accept="image/*"
                     onChange={handleEditImageChange}
                   />
-                  <Upload className="w-10 h-10 mx-auto text-slate-400" />
-                  <p className="mt-2 text-slate-500 text-sm">Click to upload new image</p>
+                  <Upload className="w-10 h-10 mx-auto" style={{ color: brandColor }} />
+                  <p className="mt-2 font-medium" style={{ color: brandColor }}>Click to upload new image</p>
                 </label>
 
-                <div className="mt-3">
-                  <img src={editImage} className="w-full h-56 object-cover rounded-lg border" />
-                </div>
+                {editImagePreview && (
+                  <div className="relative mt-3">
+                    <img src={editImagePreview} className="w-full h-56 object-cover rounded-lg border-2 border-gray-200" />
+                    {editImageFile && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-lg">
+                        <span className="text-white font-semibold bg-black bg-opacity-60 px-4 py-2 rounded-lg">New image selected</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {uploadError && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-red-700">{uploadError}</span>
+                </div>
+              )}
 
               <button
                 onClick={saveEditedBanner}
-                className="w-full py-3 px-6 bg-linear-to-r from-pink-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg"
+                disabled={loading || uploadLoading}
+                style={{ backgroundColor: brandColor }}
+                className="w-full text-white py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
               >
-                Save Changes
+                {loading || uploadLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
               </button>
 
             </div>

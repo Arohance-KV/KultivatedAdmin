@@ -1,13 +1,15 @@
-// src/components/admin/Collection.jsx (Integrated with Redux)
+// src/components/admin/Collection.jsx (Integrated with Redux Upload - Debug Version)
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { fetchCollections, createCollection, updateCollection } from '../../redux/CollectionSlice'; // Adjust path as needed
+import { fetchCollections, createCollection, updateCollection } from '../../redux/CollectionSlice';
+import { uploadImageAsync, clearUploadedImages } from '../../redux/UploadImgSlice';
 
 const BASE_URL = 'https://kk-server-lqp8.onrender.com';
 
 const Collection = () => {
   const dispatch = useDispatch();
-  const { collections, loading, error } = useSelector((state) => state.collections);
+  const { collections, loading: collectionLoading, error: collectionError } = useSelector((state) => state.collections);
+  const { imageUrls: uploadedUrls, loading: uploadLoading, error: uploadError } = useSelector((state) => state.upload);
 
   const [formData, setFormData] = useState({
     id: null,
@@ -18,10 +20,23 @@ const Collection = () => {
   });
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
 
   useEffect(() => {
     dispatch(fetchCollections());
   }, [dispatch]);
+
+  // Update existing image URLs when Redux upload completes
+  useEffect(() => {
+    if (uploadedUrls.length > 0) {
+      setFormData((prev) => ({
+        ...prev,
+        existingImageUrls: [...prev.existingImageUrls, ...uploadedUrls],
+        imageFiles: [],
+      }));
+      dispatch(clearUploadedImages());
+    }
+  }, [uploadedUrls, dispatch]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -31,6 +46,18 @@ const Collection = () => {
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     setFormData((prev) => ({ ...prev, imageFiles: files }));
+  };
+
+  const handleUploadImages = async () => {
+    if (formData.imageFiles.length === 0) return;
+    
+    try {
+      for (const file of formData.imageFiles) {
+        await dispatch(uploadImageAsync(file)).unwrap();
+      }
+    } catch (error) {
+      alert(error || 'Failed to upload images');
+    }
   };
 
   const removeFile = (index) => {
@@ -47,26 +74,6 @@ const Collection = () => {
     }));
   };
 
-  const uploadImages = async (files) => {
-    if (files.length === 0) return [];
-    const formDataUpload = new FormData();
-    files.forEach((file) => formDataUpload.append('images', file));
-    try {
-      const response = await fetch(`${BASE_URL}/upload`, {
-        method: 'POST',
-        body: formDataUpload,
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result?.message || 'Failed to upload images');
-      }
-      return result.data || result.urls || [];
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw error;
-    }
-  };
-
   const isFormValid = () => {
     const totalImages = formData.existingImageUrls.length + formData.imageFiles.length;
     return (
@@ -79,23 +86,32 @@ const Collection = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isFormValid()) return;
+
     try {
-      const { imageFiles, existingImageUrls, name, description, id } = formData;
-      const newUrls = await uploadImages(imageFiles);
-      const allImageUrls = [...existingImageUrls, ...newUrls];
+      const { existingImageUrls, name, description, id } = formData;
       const collectionData = {
         name: name.trim(),
-        imageUrls: allImageUrls,
+        imageUrls: existingImageUrls,
         description: description.trim(),
         isActive: true,
       };
+
+      // Log the data being sent for debugging
+      console.log('Submitting collection data:', collectionData);
+      setDebugInfo(`Submitting: ${JSON.stringify(collectionData, null, 2)}`);
+
       if (editId) {
-        await dispatch(updateCollection({ id, collectionData })).unwrap();
+        console.log('Updating collection with ID:', id);
+        const result = await dispatch(updateCollection({ id, collectionData })).unwrap();
+        console.log('Update result:', result);
         alert('Collection updated successfully!');
       } else {
-        await dispatch(createCollection(collectionData)).unwrap();
+        console.log('Creating new collection');
+        const result = await dispatch(createCollection(collectionData)).unwrap();
+        console.log('Create result:', result);
         alert('Collection added successfully!');
       }
+
       // Reset form and hide
       setFormData({
         id: null,
@@ -106,12 +122,17 @@ const Collection = () => {
       });
       setEditId(null);
       setShowForm(false);
+      setDebugInfo('');
     } catch (error) {
-      alert(error.message || 'Something went wrong');
+      console.error('Submit error:', error);
+      const errorMsg = error.message || error || 'Something went wrong';
+      setDebugInfo(`Error: ${errorMsg}`);
+      alert(errorMsg);
     }
   };
 
   const handleEdit = (collection) => {
+    console.log('Editing collection:', collection);
     setFormData({
       id: collection._id,
       name: collection.name,
@@ -153,6 +174,7 @@ const Collection = () => {
       existingImageUrls: [],
     });
     setShowForm(false);
+    setDebugInfo('');
   };
 
   const openAddForm = () => {
@@ -165,14 +187,15 @@ const Collection = () => {
       existingImageUrls: [],
     });
     setShowForm(true);
+    setDebugInfo('');
   };
 
-  if (loading) {
+  if (collectionLoading) {
     return <div className="p-6 bg-[#FFFFFF]">Loading collections...</div>;
   }
 
-  if (error) {
-    return <div className="p-6 bg-[#FFFFFF]">Error: {error.message || error}</div>;
+  if (collectionError) {
+    return <div className="p-6 bg-[#FFFFFF]">Error: {collectionError.message || collectionError}</div>;
   }
 
   return (
@@ -241,26 +264,47 @@ const Collection = () => {
               multiple
               accept="image/*"
               onChange={handleFileChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E1C6B3]"
+              disabled={uploadLoading}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E1C6B3] disabled:bg-gray-100"
             />
+            
+            {uploadError && (
+              <p className="text-red-500 text-sm mt-2">{uploadError}</p>
+            )}
+
             {formData.imageFiles.length > 0 && (
-              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                {formData.imageFiles.map((file, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Preview ${index + 1}`}
-                      className="w-full h-20 object-cover rounded"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+              <div className="mt-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  {formData.imageFiles.map((file, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        disabled={uploadLoading}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 disabled:opacity-50"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUploadImages}
+                  disabled={uploadLoading || formData.imageFiles.length === 0}
+                  className={`w-full px-4 py-2 font-medium rounded-md transition-colors ${
+                    uploadLoading || formData.imageFiles.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {uploadLoading ? 'Uploading...' : 'Upload Images'}
+                </button>
               </div>
             )}
           </div>
@@ -278,12 +322,20 @@ const Collection = () => {
             />
           </div>
 
+          {/* Debug Info */}
+          {debugInfo && (
+            <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded text-xs text-gray-700 max-h-40 overflow-auto">
+              <p className="font-semibold mb-2">Debug Info:</p>
+              <pre>{debugInfo}</pre>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={!isFormValid()}
+              disabled={!isFormValid() || uploadLoading}
               className={`flex-1 px-4 py-2 font-medium rounded-md transition-colors ${
-                isFormValid()
+                isFormValid() && !uploadLoading
                   ? 'bg-[#c28356] text-white hover:bg-[#c46c39]/90'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
@@ -293,7 +345,8 @@ const Collection = () => {
             <button
               type="button"
               onClick={cancelEdit}
-              className="px-4 py-2 bg-gray-500 text-white font-medium rounded-md hover:bg-gray-600"
+              disabled={uploadLoading}
+              className="px-4 py-2 bg-gray-500 text-white font-medium rounded-md hover:bg-gray-600 disabled:opacity-50"
             >
               Cancel
             </button>

@@ -14,7 +14,7 @@ export const fetchCollections = createAsyncThunk(
       }
       return result.data; // Array of collections
     } catch (error) {
-      return rejectWithValue({ message: 'Network error: Failed to fetch collections' });
+      return rejectWithValue({ message: error?.message || 'Network error: Failed to fetch collections' });
     }
   }
 );
@@ -36,7 +36,7 @@ export const createCollection = createAsyncThunk(
       }
       return result.data; // Single collection object
     } catch (error) {
-      return rejectWithValue({ message: 'Network error: Failed to create collection' });
+      return rejectWithValue({ message: error?.message || 'Network error: Failed to create collection' });
     }
   }
 );
@@ -58,7 +58,7 @@ export const updateCollection = createAsyncThunk(
       }
       return result.data; // Updated collection object
     } catch (error) {
-      return rejectWithValue({ message: 'Network error: Failed to update collection' });
+      return rejectWithValue({ message: error?.message || 'Network error: Failed to update collection' });
     }
   }
 );
@@ -82,7 +82,7 @@ export const addImagesToCollection = createAsyncThunk(
       }
       return result.data; // Updated collection object
     } catch (error) {
-      return rejectWithValue({ message: 'Network error: Failed to add images' });
+      return rejectWithValue({ message: error?.message || 'Network error: Failed to add images' });
     }
   }
 );
@@ -104,7 +104,7 @@ export const removeImageFromCollection = createAsyncThunk(
       }
       return result.data; // Updated collection object
     } catch (error) {
-      return rejectWithValue({ message: 'Network error: Failed to remove image' });
+      return rejectWithValue({ message: error?.message || 'Network error: Failed to remove image' });
     }
   }
 );
