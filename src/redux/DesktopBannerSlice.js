@@ -110,16 +110,16 @@ export const getDesktopBannerById = createAsyncThunk(
 );
 
 /* =================================
-   UPDATE BANNER (PATCH /banner/:id)
+   UPDATE BANNER (PATCH /banner)
 ================================= */
 export const updateDesktopBanner = createAsyncThunk(
   "desktopBanner/update",
-  async ({ id, updates }, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
-      const res = await fetch(`${BASE_URL}/banner/${id}`, {
+      const res = await fetch(`${BASE_URL}/banner`, {
         method: "PATCH",
         headers: getAuthHeaders(),
-        body: JSON.stringify(updates),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();

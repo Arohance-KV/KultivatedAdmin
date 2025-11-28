@@ -1,19 +1,21 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 
-const BASE_URL = "https://kk-server-lqp8.onrender.com";
+const API_BASE_URL = "https://kk-server-lqp8.onrender.com";
 
 // ========== AUTH HELPER ==========
 const getAuthHeaders = () => {
+  // Try multiple possible token keys
   let token = localStorage.getItem("accessToken") 
     || localStorage.getItem("authToken")
     || localStorage.getItem("accessToken");
   
+  // If token is stored as user object, parse it
   if (!token) {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
       token = user?.token || user?.accessToken || user?.authToken;
     } catch (e) {
-      console.log("Could not parse user object");
+      console.log("Could not parse user object", e);
     }
   }
 
@@ -27,156 +29,137 @@ const getAuthHeaders = () => {
   };
 };
 
-/* ===============================
-   CREATE MOBILE BANNER (POST /mobile-banner)
-=============================== */
-export const createMobileBanner = createAsyncThunk(
-  "mobileBanner/create",
-  async (payload, { rejectWithValue }) => {
-    try {
-      const res = await fetch(`${BASE_URL}/mobile-banner`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      
-      if (!res.ok) {
-        console.error("Create mobile banner error:", data);
-        return rejectWithValue(data?.message || "Failed to create mobile banner");
-      }
-
-      // Return the single banner from data.data
-      return data.data;
-    } catch (err) {
-      console.error("Create mobile banner exception:", err);
-      return rejectWithValue(err.message);
-    }
-  }
-);
-
-/* ===============================
-   GET ALL MOBILE BANNERS (GET /mobile-banner)
-=============================== */
+// GET ALL MOBILE BANNERS
 export const getAllMobileBanners = createAsyncThunk(
-  "mobileBanner/getAll",
+  "mobileBanner/getAllMobileBanners",
   async (_, { rejectWithValue }) => {
     try {
-      const res = await fetch(`${BASE_URL}/mobile-banner`, {
+      const url = `${API_BASE_URL}/mobile-banner`;
+      console.log("Fetching from:", url);
+      
+      const response = await fetch(url, {
         method: "GET",
         headers: getAuthHeaders(),
       });
-
-      const data = await res.json();
+      console.log("Response status:", response.status);
       
-      if (!res.ok) {
-        console.error("Get mobile banners error:", data);
-        return rejectWithValue(data?.message || "Failed to fetch mobile banners");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
-
-      // API returns { data: [...], statusCode: 200, success: true }
-      // So extract the array from data.data
-      console.log("API Response:", data);
-      return Array.isArray(data.data) ? data.data : [];
-    } catch (err) {
-      console.error("Get mobile banners exception:", err);
-      return rejectWithValue(err.message);
+      
+      const jsonData = await response.json();
+      console.log("Fetched data:", jsonData);
+      return jsonData.data || [];
+    } catch (error) {
+      console.error("Fetch error:", error);
+      return rejectWithValue(error.message || "Failed to fetch banners");
     }
   }
 );
 
-/* =================================
-   GET SINGLE MOBILE BANNER (GET /mobile-banner/:id)
-================================= */
-export const getMobileBannerById = createAsyncThunk(
-  "mobileBanner/getById",
-  async (id, { rejectWithValue }) => {
+// CREATE MOBILE BANNER
+export const createMobileBanner = createAsyncThunk(
+  "mobileBanner/createMobileBanner",
+  async (bannerData, { rejectWithValue }) => {
     try {
-      const res = await fetch(`${BASE_URL}/mobile-banner/${id}`, {
-        method: "GET",
+      const response = await fetch(`${API_BASE_URL}/mobile-banner`, {
+        method: "POST",
         headers: getAuthHeaders(),
+        body: JSON.stringify(bannerData),
       });
-
-      const data = await res.json();
       
-      if (!res.ok) {
-        return rejectWithValue(data?.message || "Failed to fetch mobile banner");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to create banner");
       }
-
-      return data.data;
-    } catch (err) {
-      return rejectWithValue(err.message);
+      
+      const jsonData = await response.json();
+      return jsonData.data;
+    } catch (error) {
+      return rejectWithValue(error.message || "Failed to create banner");
     }
   }
 );
 
-/* =================================
-   UPDATE MOBILE BANNER (PATCH /mobile-banner/:id)
-================================= */
+// UPDATE MOBILE BANNER
 export const updateMobileBanner = createAsyncThunk(
-  "mobileBanner/update",
-  async ({ id, updates }, { rejectWithValue }) => {
+  "mobileBanner/updateMobileBanner",
+  async (bannerData, { rejectWithValue }) => {
     try {
-      const res = await fetch(`${BASE_URL}/mobile-banner/${id}`, {
+      const { _id } = bannerData;
+      const url = `${API_BASE_URL}/mobile-banner/`;
+      console.log("Updating banner at:", url, "with data:", bannerData);
+      
+      const response = await fetch(url, {
         method: "PATCH",
         headers: getAuthHeaders(),
-        body: JSON.stringify(updates),
+        body: JSON.stringify(bannerData),
       });
-
-      const data = await res.json();
       
-      if (!res.ok) {
-        console.error("Update mobile banner error:", data);
-        return rejectWithValue(data?.message || "Failed to update mobile banner");
+      console.log("Update response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Update error response:", errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
-
-      return data.data;
-    } catch (err) {
-      console.error("Update mobile banner exception:", err);
-      return rejectWithValue(err.message);
+      
+      const jsonData = await response.json();
+      console.log("Updated banner:", jsonData);
+      return jsonData.data;
+    } catch (error) {
+      console.error("Update mobile banner exception:", error);
+      return rejectWithValue(error.message || "Failed to update banner");
     }
   }
 );
 
-/* =================================
-   DELETE MOBILE BANNER (DELETE /mobile-banner/:id)
-================================= */
+// DELETE MOBILE BANNER
 export const deleteMobileBanner = createAsyncThunk(
-  "mobileBanner/delete",
+  "mobileBanner/deleteMobileBanner",
   async (id, { rejectWithValue }) => {
     try {
-      const res = await fetch(`${BASE_URL}/mobile-banner/${id}`, {
+      const url = `${API_BASE_URL}/mobile-banner/${id}`;
+      console.log("Deleting banner at:", url);
+      
+      const response = await fetch(url, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
-
-      const data = await res.json();
       
-      if (!res.ok) {
-        return rejectWithValue(data?.message || "Failed to delete mobile banner");
+      console.log("Delete response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Delete error response:", errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      return data.data;
-    } catch (err) {
-      return rejectWithValue(err.message);
+      const jsonData = await response.json();
+      return jsonData.data;
+    } catch (error) {
+      console.error("Delete mobile banner exception:", error);
+      return rejectWithValue(error.message || "Failed to delete banner");
     }
   }
 );
 
-/* ===========================
-    SLICE
-=========================== */
+// ==================== INITIAL STATE ====================
+
+const initialState = {
+  banners: [],
+  loading: false,
+  error: null,
+  success: false,
+};
+
+// ==================== SLICE ====================
 
 const mobileBannerSlice = createSlice({
   name: "mobileBanner",
-  initialState: {
-    banners: [],
-    singleBanner: null,
-    loading: false,
-    error: null,
-    success: false,
-  },
+  initialState,
   reducers: {
     clearError: (state) => {
       state.error = null;
@@ -185,9 +168,25 @@ const mobileBannerSlice = createSlice({
       state.success = false;
     },
   },
-
   extraReducers: (builder) => {
-    // CREATE
+    // GET ALL BANNERS
+    builder
+      .addCase(getAllMobileBanners.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getAllMobileBanners.fulfilled, (state, action) => {
+        state.loading = false;
+        state.banners = action.payload;
+        state.success = true;
+      })
+      .addCase(getAllMobileBanners.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        state.success = false;
+      });
+
+    // CREATE BANNER
     builder
       .addCase(createMobileBanner.pending, (state) => {
         state.loading = true;
@@ -202,64 +201,37 @@ const mobileBannerSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
         state.success = false;
-      })
+      });
 
-    // GET ALL
-      .addCase(getAllMobileBanners.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(getAllMobileBanners.fulfilled, (state, action) => {
-        state.loading = false;
-        state.banners = Array.isArray(action.payload) ? action.payload : [];
-        state.error = null;
-      })
-      .addCase(getAllMobileBanners.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-        state.banners = [];
-      })
-
-    // GET BY ID
-      .addCase(getMobileBannerById.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(getMobileBannerById.fulfilled, (state, action) => {
-        state.loading = false;
-        state.singleBanner = action.payload;
-      })
-      .addCase(getMobileBannerById.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-
-    // UPDATE
+    // UPDATE BANNER
+    builder
       .addCase(updateMobileBanner.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(updateMobileBanner.fulfilled, (state, action) => {
         state.loading = false;
-        state.banners = state.banners.map((b) =>
-          b._id === action.payload._id ? action.payload : b
-        );
-        state.singleBanner = action.payload;
+        const index = state.banners.findIndex(b => b._id === action.payload._id);
+        if (index !== -1) {
+          state.banners[index] = action.payload;
+        }
         state.success = true;
       })
       .addCase(updateMobileBanner.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
         state.success = false;
-      })
+      });
 
-    // DELETE
+    // DELETE BANNER
+    builder
       .addCase(deleteMobileBanner.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(deleteMobileBanner.fulfilled, (state, action) => {
         state.loading = false;
-        state.banners = state.banners.filter((b) => b._id !== action.payload._id);
+        state.banners = state.banners.filter(b => b._id !== action.payload._id);
         state.success = true;
       })
       .addCase(deleteMobileBanner.rejected, (state, action) => {
