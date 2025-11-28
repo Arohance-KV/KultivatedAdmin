@@ -56,7 +56,7 @@ export default function DashboardHome() {
         }}
       >
         <h1 className="text-4xl font-bold text-[#c28356] tracking-wide drop-shadow-sm">
-          KK Admin Dashboard
+        Kultivated Karats Dashboard
         </h1>
 
         <span

@@ -56,7 +56,7 @@ const AdminLayout = () => {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#E1C6B3]">
           {!isCollapsed && (
-            <h1 className="text-2xl font-bold tracking-wide">Kaltivated Karats</h1>
+            <h1 className="text-2xl font-bold tracking-wide">Kultivated Karats</h1>
           )}
           <button
             onClick={toggleSidebar}
