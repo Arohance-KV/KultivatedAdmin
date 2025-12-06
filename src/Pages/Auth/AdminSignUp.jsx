@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { signup } from "../../redux/AuthSlice";
-import { UserPlus, Mail, Phone, Lock } from "lucide-react";
+import { UserPlus, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function AdminSignup() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
+
   const { loading, error, success } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
@@ -17,7 +17,17 @@ export default function AdminSignup() {
     phoneNumber: "",
     password: "",
   });
+
   const [localError, setLocalError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // VALIDATION FUNCTIONS
+  const validateName = (name) => /^[A-Za-z]{2,}$/.test(name);
+  const validateEmail = (email) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validatePhone = (phone) =>
+    /^[0-9]{10}$/.test(phone);
+  const validatePassword = (password) => password.length >= 6;
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -27,8 +37,27 @@ export default function AdminSignup() {
   const handleSignup = async (e) => {
     e.preventDefault();
 
-    if (!formData.firstName || !formData.email || !formData.password) {
-      setLocalError("Please fill all required fields.");
+    // First name validation
+    if (!validateName(formData.firstName)) {
+      setLocalError("First name must contain only letters & be at least 2 characters.");
+      return;
+    }
+
+    // Email validation
+    if (!validateEmail(formData.email)) {
+      setLocalError("Please enter a valid email address.");
+      return;
+    }
+
+    // Phone validation (optional field)
+    if (formData.phoneNumber && !validatePhone(formData.phoneNumber)) {
+      setLocalError("Phone number must be 10 digits only.");
+      return;
+    }
+
+    // Password validation
+    if (!validatePassword(formData.password)) {
+      setLocalError("Password must be at least 6 characters long.");
       return;
     }
 
@@ -47,10 +76,13 @@ export default function AdminSignup() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-purple-50 to-pink-100">
-      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl">
+      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl ">
+
+        {/* Icon */}
         <div className="flex justify-center mb-6">
           <UserPlus className="w-16 h-16 text-[#ce8b5b]" />
         </div>
+
         <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">
           Admin Signup
         </h2>
@@ -64,7 +96,10 @@ export default function AdminSignup() {
           </div>
         )}
 
+        {/* FORM */}
         <form onSubmit={handleSignup} className="space-y-4">
+
+          {/* NAME FIELDS */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -80,6 +115,7 @@ export default function AdminSignup() {
                 disabled={loading}
               />
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Last Name
@@ -96,14 +132,15 @@ export default function AdminSignup() {
             </div>
           </div>
 
+          {/* EMAIL FIELD */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Email Address *
             </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
-                type="email"
+                type="text"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
@@ -114,42 +151,54 @@ export default function AdminSignup() {
             </div>
           </div>
 
+          {/* PHONE FIELD */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Phone Number
             </label>
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="tel"
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handleChange}
-                placeholder="+91 98765 43210"
+                placeholder="9876543210"
                 className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 disabled={loading}
               />
             </div>
           </div>
 
+          {/* PASSWORD FIELD */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Password *
             </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 disabled={loading}
               />
+
+              {/* EYE ICON */}
+              <span
+                className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-gray-600"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </span>
             </div>
           </div>
 
+          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}
@@ -166,6 +215,7 @@ export default function AdminSignup() {
           </button>
         </form>
 
+        {/* LOGIN LINK */}
         <p className="mt-6 text-center text-sm text-gray-600">
           Already have an account?{" "}
           <span
